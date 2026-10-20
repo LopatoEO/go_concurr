@@ -40,7 +40,7 @@ type Stats struct {
 	Panics  int
 	Failed  int
 	Success map[int]int
-	lock    sync.RWMutex
+	lock    sync.Mutex
 }
 
 func (s *Stats) IncrementPanic() {
