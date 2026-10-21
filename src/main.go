@@ -83,9 +83,12 @@ func NewWorkerPool(numWorkers, maxConcurrent int) *WorkerPool {
 	}
 }
 
-func (wp *WorkerPool) Start(intakeCtx context.Context, workCtx context.Context, jobs <-chan Job, results chan<- Result) chan struct{} {
+func (wp *WorkerPool) Start(intakeCtx context.Context, jobs <-chan Job, results chan<- Result) chan struct{} {
 	var wg sync.WaitGroup
 	done := make(chan struct{})
+
+	workCtx, cancelWork := context.WithCancel(context.Background())
+
 	for i := 1; i <= wp.NumWorkers; i++ {
 		wg.Add(1)
 		go func(workerID int) {
@@ -98,6 +101,19 @@ func (wp *WorkerPool) Start(intakeCtx context.Context, workCtx context.Context, 
 		wg.Wait()
 		close(results)
 		close(done)
+	}()
+
+	go func() {
+		<-intakeCtx.Done()
+
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			cancelWork()
+		case <-done:
+			return
+		}
 	}()
 
 	return done
@@ -225,27 +241,12 @@ func main() {
 
 	intakeCtx, intakecancel := context.WithTimeout(signalCtx, 3*time.Second)
 	defer intakecancel()
-	workCtx, cancelWork := context.WithCancel(context.Background())
-	defer cancelWork()
 
 	jobs := make(chan Job, N)
 	results := make(chan Result, N)
 
 	wp := NewWorkerPool(M, K)
-	done := wp.Start(intakeCtx, workCtx, jobs, results)
-
-	go func() {
-		<-intakeCtx.Done()
-
-		timer := time.NewTimer(5 * time.Second)
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			cancelWork()
-		case <-done:
-			return
-		}
-	}()
+	wp.Start(intakeCtx, jobs, results)
 
 	go producer(intakeCtx, jobs, N)
 
