@@ -83,7 +83,7 @@ func NewWorkerPool(numWorkers, maxConcurrent int) *WorkerPool {
 	}
 }
 
-func (wp *WorkerPool) Start(intakeCtx context.Context, jobs <-chan Job, results chan<- Result) chan struct{} {
+func (wp *WorkerPool) Start(intakeCtx context.Context, jobs <-chan Job, results chan<- Result) {
 	var wg sync.WaitGroup
 	done := make(chan struct{})
 
@@ -116,7 +116,6 @@ func (wp *WorkerPool) Start(intakeCtx context.Context, jobs <-chan Job, results 
 		}
 	}()
 
-	return done
 }
 
 func producer(ctx context.Context, jobs chan<- Job, N int) {
